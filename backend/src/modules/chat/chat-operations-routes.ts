@@ -304,7 +304,8 @@ export async function chatOperationsRoutes(app: FastifyInstance) {
   app.delete('/api/v1/conversations/:id/messages/:msgId', chatAccess, async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user!;
     const { id, msgId } = request.params as { id: string; msgId: string };
-    const { onlyMe = false } = (request.body ?? {}) as { onlyMe?: boolean };
+    // GETA: mặc định xóa phía mình (nút "Xóa (self only)"); xóa với mọi người đã có nút "Thu hồi" riêng (/undo)
+    const { onlyMe = true } = (request.body ?? {}) as { onlyMe?: boolean };
 
     const conv = await getConversation(id, user.orgId, reply);
     if (!conv) return;

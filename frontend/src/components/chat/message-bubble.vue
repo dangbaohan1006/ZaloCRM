@@ -100,7 +100,7 @@
             <span class="recall-icon">🔂</span>
             <span class="recall-label">Tin nhắn đã thu hồi</span>
           </div>
-          <div v-if="message.content" class="recall-body">{{ message.content }}</div>
+          <!-- GETA: không hiện lại nội dung gốc của tin đã thu hồi (khung "Tin nhắn đã thu hồi" là đủ) -->
         </div>
 
         <template v-else>

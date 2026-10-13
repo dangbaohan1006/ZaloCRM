@@ -51,7 +51,8 @@ export function useChatOperations() {
 
   async function deleteMessage(convId: string, msgId: string): Promise<void> {
     try {
-      await api.delete(`/conversations/${convId}/messages/${msgId}`);
+      // Menu ghi "Xóa (self only)": chỉ xóa phía mình. Không gửi gì thì máy chủ hiểu là xóa với mọi người và Zalo từ chối (lỗi 500).
+      await api.delete(`/conversations/${convId}/messages/${msgId}`, { data: { onlyMe: true } });
     } catch (err) {
       console.error('Failed to delete message:', err);
       throw err;
