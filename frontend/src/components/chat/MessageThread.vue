@@ -426,6 +426,22 @@
                   {{ formatMessageTime(item.sentAt) }} · 🖼️ {{ item.messages.length }} ảnh
                 </div>
               </div>
+              <!-- Thả cảm xúc cho cả album: Zalo gắn cảm xúc vào 1 tin, ta gắn vào ảnh cuối của album -->
+              <reaction-display
+                v-if="albumReactTarget(item)?.reactions?.length"
+                :reactions="albumReactTarget(item)!.reactions!"
+                class="album-reaction-box"
+                :class="item.senderType === 'self' ? 'album-reaction-right' : 'album-reaction-left'"
+                @toggle="(emoji: string) => onToggleReaction(albumReactTarget(item)!, emoji)"
+                @open-detail="onOpenReactionDetail({ reactions: $event, message: albumReactTarget(item)! })"
+              />
+              <div
+                v-if="albumReactTarget(item)"
+                class="album-reaction-trigger"
+                :class="item.senderType === 'self' ? 'album-reaction-trigger--left' : 'album-reaction-trigger--right'"
+              >
+                <reaction-picker @react="onToggleReaction(albumReactTarget(item)!, $event)" />
+              </div>
             </div>
           </div>
 
@@ -916,6 +932,8 @@ import MessageBubble from '@/components/chat/message-bubble.vue';
 // M53 2026-05-30: Trợ lý AI cho virtual chat
 import AiAssistantMessage from '@/components/chat/AiAssistantMessage.vue';
 import ReactionDetailPopup from '@/components/chat/reaction-detail-popup.vue';
+import ReactionDisplay from '@/components/chat/reaction-display.vue';
+import ReactionPicker from '@/components/chat/reaction-picker.vue';
 import { usePrivacyVisibility } from '@/composables/use-privacy-visibility';
 import NickAvatarLock from '@/components/privacy/NickAvatarLock.vue';
 // Phase Privacy OTP 2026-05-27 — swap PIN dialog → OTP modal
@@ -2504,6 +2522,10 @@ function onContextMenu(event: MouseEvent, msg: Message) {
   contextPos.value = { x: event.clientX, y: event.clientY };
   showContextMenu.value = true;
 }
+// Tin nhận cảm xúc của cả album: ảnh cuối (ảnh đầu có thể chưa về khi album đang nhận dở)
+function albumReactTarget(item: { messages: Message[] }): Message | null {
+  return item.messages.length ? item.messages[item.messages.length - 1] : null;
+}
 function onToggleReaction(msg: Message, emoji: string) {
   // Phase A fix (2026-05-21): click chip mà user ĐÃ reacted với emoji này → toggle OFF.
   // Trước fix: luôn emit 'add-reaction' → POST /reactions lần 2 với cùng emoji →
@@ -3804,7 +3826,20 @@ watch(() => props.editingMessage?.id, async (id) => {
 .msg-album-wrap { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 5px; }
 .msg-album-wrap.self { flex-direction: row-reverse; }
 .msg-album-wrap .msg-avatar { flex-shrink: 0; }
-.msg-album-body { max-width: 60%; }
+.msg-album-body { max-width: 60%; position: relative; }
+/* Hover vào album → hiện nút thả cảm xúc, giống tin text (.bubble-wrapper:hover .reaction-trigger) */
+.album-reaction-trigger {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  opacity: 0; transition: opacity 0.15s;
+}
+.msg-album-body:hover .album-reaction-trigger,
+.album-reaction-trigger:focus-within { opacity: 1; }
+.album-reaction-trigger--left { left: -34px; }
+.album-reaction-trigger--right { right: -34px; }
+.album-reaction-box { position: absolute; bottom: -10px; z-index: 2; width: max-content; }
+.album-reaction-left { left: 8px; }
+.album-reaction-right { right: 8px; }
+.msg-album-body:has(.album-reaction-box) { margin-bottom: 12px; }
 .bubble.album {
   background: var(--smax-bg);
   border-radius: 13px;
