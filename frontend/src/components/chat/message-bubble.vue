@@ -924,7 +924,7 @@ async function openFile(href: string, name?: string) {
   const fetchBlob = () => api.get('/media/download', {
     params: { url: href, name: name || '' },
     responseType: 'blob',
-    timeout: 60000, // file lớn (vài MB) + MinIO cold → nới timeout, tránh fallback tên-hash
+    timeout: 600000, // file lớn (tới vài trăm MB, proxy từ CDN Zalo) + MinIO cold → nới timeout, tránh fallback tên-hash
   });
   try {
     let res;
