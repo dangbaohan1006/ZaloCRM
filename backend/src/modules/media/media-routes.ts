@@ -29,6 +29,8 @@ import { generateThumbnail, sendNativeVideo } from '../../shared/video-processor
 import { uploadBuffer, getObjectBuffer, keyFromPublicUrl } from '../../shared/storage/minio-client.js';
 import { scanOrPass } from '../../shared/security/clamav-client.js';
 import { readFile } from 'node:fs/promises';
+import { Readable } from 'node:stream';
+import { isAllowedExternalFileUrl } from './external-file-url.js';
 import { logger } from '../../shared/utils/logger.js';
 
 const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -864,7 +866,30 @@ export async function mediaRoutes(app: FastifyInstance) {
       const q = request.query as { url?: string; name?: string };
       if (!q.url) return reply.status(400).send({ error: 'Thiếu url' });
       const key = keyFromPublicUrl(q.url);
-      if (!key) return reply.status(400).send({ error: 'URL không thuộc kho' });
+      if (!key) {
+        // Tệp lớn chưa mirror về kho: href còn là link CDN Zalo → proxy STREAM (không buffer file chục MB).
+        if (!isAllowedExternalFileUrl(q.url)) return reply.status(400).send({ error: 'URL không thuộc kho' });
+        let upstream: Response;
+        try {
+          upstream = await fetch(q.url, { redirect: 'follow', signal: AbortSignal.timeout(15 * 60_000) });
+        } catch (e) {
+          logger.warn(`[media][download] CDN fetch lỗi: ${(e as Error).message}`);
+          return reply.status(502).send({ error: 'Không tải được tệp từ Zalo' });
+        }
+        // Sau redirect vẫn phải là host Zalo cho phép.
+        if (!upstream.ok || !upstream.body || !isAllowedExternalFileUrl(upstream.url || q.url)) {
+          return reply.status(upstream.ok ? 400 : 502).send({ error: 'Không tải được tệp từ Zalo' });
+        }
+        const extName = (q.name && q.name.trim().replace(/["
+]/g, '').slice(0, 200)) || 'tep';
+        reply
+          .header('Content-Disposition', `attachment; filename="${extName}"; filename*=UTF-8''${encodeURIComponent(extName)}`)
+          .header('Content-Type', 'application/octet-stream')
+          .header('Cache-Control', 'private, max-age=0');
+        const len = upstream.headers.get('content-length');
+        if (len) reply.header('Content-Length', len);
+        return reply.send(Readable.fromWeb(upstream.body as any));
+      }
       // BUFFER (không pipe stream) — pipe MinIO-stream vào reply đôi khi TREO (socket hang up,
       // anh gặp 2 file). Đọc hết thành Buffer rồi send → ổn định, file kho nhỏ vài MB.
       const buf = await getObjectBuffer(key);
